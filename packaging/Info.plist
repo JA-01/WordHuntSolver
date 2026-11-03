@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleName</key><string>Word Hunt Solver</string>
+    <key>CFBundleDisplayName</key><string>Word Hunt Solver</string>
+    <key>CFBundleIdentifier</key><string>dev.wordhunt.solver</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleExecutable</key><string>WordHuntSolver</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSScreenCaptureUsageDescription</key><string>Read the Word Hunt board from the selected iPhone Mirroring window.</string>
+    <key>NSAccessibilityUsageDescription</key><string>Trace solved words in iPhone Mirroring and stop when the target changes.</string>
+</dict></plist>

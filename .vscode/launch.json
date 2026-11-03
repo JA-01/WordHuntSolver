@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:WordHuntSolver}",
+            "name": "Debug WordHuntSolver",
+            "target": "WordHuntSolver",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug WordHuntSolver"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:WordHuntSolver}",
+            "name": "Release WordHuntSolver",
+            "target": "WordHuntSolver",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release WordHuntSolver"
+        }
+    ]
+}
