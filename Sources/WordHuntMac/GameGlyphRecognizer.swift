@@ -23,7 +23,8 @@ struct GameGlyphRecognizer {
 
     private static let side = 32
     private static let prototypes: [Prototype] = {
-        guard let url = Bundle.module.url(forResource: "GamePigeonGlyphs", withExtension: "bin"),
+        guard let url = ResourceBundle.packaged("WordHuntSolver_WordHuntMac", fallback: { .module })
+                .url(forResource: "GamePigeonGlyphs", withExtension: "bin"),
               let data = try? Data(contentsOf: url), data.count >= 8,
               Array(data.prefix(4)) == Array("WHG1".utf8) else { return [] }
         let bytes = [UInt8](data)

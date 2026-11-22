@@ -6,16 +6,12 @@ struct BoardPreview: NSViewRepresentable {
     let image: CGImage?
     let geometry: GridGeometry?
     let path: [Int]
-    let calibrating: Bool
-    let onBounds: (CGRect) -> Void
 
     func makeNSView(context: Context) -> PreviewCanvas { PreviewCanvas() }
     func updateNSView(_ view: PreviewCanvas, context: Context) {
         view.image = image
         view.geometry = geometry
         view.path = path
-        view.calibrating = calibrating
-        view.onBounds = onBounds
         view.needsDisplay = true
     }
 }
@@ -24,10 +20,6 @@ final class PreviewCanvas: NSView {
     var image: CGImage?
     var geometry: GridGeometry?
     var path: [Int] = []
-    var calibrating = false
-    var onBounds: ((CGRect) -> Void)?
-    private var anchor: CGPoint?
-    private var selection: CGRect?
     override var isFlipped: Bool { true }
 
     private var imageRect: CGRect {
@@ -62,30 +54,5 @@ final class PreviewCanvas: NSView {
                 line.stroke()
             }
         }
-        if let selection {
-            NSColor.systemOrange.withAlphaComponent(0.2).setFill()
-            selection.fill()
-            NSColor.systemOrange.setStroke()
-            NSBezierPath(rect: selection).stroke()
-        }
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        guard calibrating, imageRect.contains(convert(event.locationInWindow, from: nil)) else { return }
-        anchor = convert(event.locationInWindow, from: nil)
-        selection = nil
-    }
-    override func mouseDragged(with event: NSEvent) {
-        guard let anchor else { return }
-        let p = convert(event.locationInWindow, from: nil)
-        selection = CGRect(x: min(anchor.x, p.x), y: min(anchor.y, p.y), width: abs(p.x - anchor.x), height: abs(p.y - anchor.y)).intersection(imageRect)
-        needsDisplay = true
-    }
-    override func mouseUp(with event: NSEvent) {
-        defer { anchor = nil; selection = nil; needsDisplay = true }
-        guard let image, let selection, selection.width > 20, selection.height > 20 else { return }
-        let frame = imageRect
-        let scale = Double(image.width) / frame.width
-        onBounds?(CGRect(x: (selection.minX - frame.minX) * scale, y: (selection.minY - frame.minY) * scale, width: selection.width * scale, height: selection.height * scale))
     }
 }

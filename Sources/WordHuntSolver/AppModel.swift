@@ -11,12 +11,12 @@ final class AppModel: ObservableObject {
     @Published var size = 4
     @Published var words: [FoundWord] = []
     @Published var selectedWord: String?
-    @Published var status = "Open a board in iPhone Mirroring, or try the practice board."
+    @Published private(set) var activeWord: String?
+    @Published var status = "Open Word Hunt in iPhone Mirroring, then choose Solve & Auto Swipe."
     @Published var issue: String?
     @Published var busy = false
     @Published var running = false
     @Published var watching = false
-    @Published var calibrating = false
     @Published var confidence: Float?
     @Published var windowChoices: [MirrorWindow] = []
     @Published var selectedWindowID: CGWindowID = 0
@@ -37,10 +37,6 @@ final class AppModel: ObservableObject {
     private var job: Task<Void, Never>?
     private var generation = 0
     private var executor: SwipeExecutor?
-    private var practice: PracticeController?
-    private var calibration: CGRect?
-    private var calibrationImageSize: CGSize?
-    private var calibrationTargetID: CGWindowID?
 
     var estimatedScore: Int { words.reduce(0) { $0 + $1.score } }
     var selectedPath: [Int] { words.first { $0.word == selectedWord }?.path ?? [] }
@@ -85,7 +81,7 @@ final class AppModel: ObservableObject {
         do {
             guard let image = NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { throw WordHuntError.detection("Could not read this image.") }
             stop()
-            target = nil; isLive = false; calibration = nil
+            target = nil; isLive = false
             startRecognition(image: image, target: nil)
         } catch { issue = error.localizedDescription }
     }
@@ -110,25 +106,17 @@ final class AppModel: ObservableObject {
         catch { issue = error.localizedDescription }
     }
 
-    func showPractice() {
-        guard let solver else { return }
-        practice = PracticeController(solver: solver)
-        practice?.show()
-        refreshWindows()
-        if let choice = windowChoices.first(where: { $0.ownerPID == getpid() }) { selectedWindowID = choice.id }
-    }
-
     func loadSample() {
         do {
             stop()
-            target = nil; isLive = false; calibration = nil
+            target = nil; isLive = false
             startRecognition(image: try BoardArtwork.image(), target: nil)
         } catch { issue = error.localizedDescription }
     }
 
     func capture() {
         guard !busy && !running else { return }
-        issue = nil; busy = true; calibrating = false
+        issue = nil; busy = true
         generation += 1
         let token = generation
         job = Task {
@@ -143,15 +131,6 @@ final class AppModel: ObservableObject {
             } catch { if token == generation { issue = error.localizedDescription } }
             if token == generation { busy = false }
         }
-    }
-
-    func calibrate(_ bounds: CGRect) {
-        guard !busy, !running, !watching, let image else { return }
-        calibration = bounds
-        calibrationImageSize = CGSize(width: image.width, height: image.height)
-        calibrationTargetID = target?.id
-        calibrating = false
-        startRecognition(image: image, target: target)
     }
 
     private func startRecognition(image: CGImage, target: MirrorWindow?) {
@@ -174,10 +153,8 @@ final class AppModel: ObservableObject {
         isLive = target != nil
         geometry = nil; board = nil; words = []; confidence = nil; selectedWord = nil
         status = "Detecting tiles and reading letters…"
-        let dimensions = CGSize(width: image.width, height: image.height)
-        let bounds = calibrationImageSize == dimensions && calibrationTargetID == target?.id ? calibration : nil
         let gridSize = size
-        let result = try await Task.detached(priority: .userInitiated) { try BoardDetector().detect(image: image, size: gridSize, bounds: bounds) }.value
+        let result = try await Task.detached(priority: .userInitiated) { try BoardDetector().detect(image: image, size: gridSize) }.value
         try Task.checkCancellation()
         guard operation == generation else { throw CancellationError() }
         self.geometry = result.geometry
@@ -187,7 +164,7 @@ final class AppModel: ObservableObject {
             self.board = board
             if solve {
                 try await findWords(board)
-                status = "Board ready. Check letters and green center markers before playing."
+                status = "Board ready. Select a word to preview its path; edit letters if needed."
             }
         } else {
             board = nil
@@ -227,7 +204,8 @@ final class AppModel: ObservableObject {
     }
 
     /// One action owns capture, stable recognition, solving, validation and input.
-    /// It waits for a board, not arbitrary buttons or a new game.
+    /// It may be armed before the round starts: it waits for a settled board and
+    /// never presses buttons or starts a new game.
     func solveAndPlay() {
         guard !busy && !running else { return }
         refreshWindows()
@@ -237,15 +215,17 @@ final class AppModel: ObservableObject {
         }
         generation += 1
         let token = generation
-        busy = true; watching = true; calibrating = false; issue = nil
+        busy = true; watching = true; issue = nil
         attempted = 0; planned = 0
-        status = "Finding the board in iPhone Mirroring…"
+        status = "Armed. Start the round on the phone; swiping begins once its board is confirmed."
         job = Task {
             defer {
                 if token == generation { busy = false; watching = false; running = false }
             }
-            var stable: Board?
-            var firstSeen = 0.0
+            // The previous frame, while it showed confidently read letters.
+            var lastFrame: (board: Board, image: CGImage)?
+            // When the current letters first appeared; the round budget starts there.
+            var seen: (board: Board, at: Double)?
             var lastProblem = "No readable board is visible."
             do {
                 let initial = try chosenWindow()
@@ -259,28 +239,39 @@ final class AppModel: ObservableObject {
                 while token == generation {
                     try Task.checkCancellation()
                     guard ProcessInfo.processInfo.systemUptime - watchStart < 90 else {
-                        throw WordHuntError.automation("Automatic play stopped: \(lastProblem) Open a live round, or use Capture only to calibrate and correct its letters.")
+                        throw WordHuntError.automation("Automatic play stopped: \(lastProblem) Open a live round, or use Capture only to inspect and correct its letters.")
                     }
+                    let frameTime = ProcessInfo.processInfo.systemUptime
                     let snapshot = try await MirroringCapture.capture(initial)
                     try Task.checkCancellation()
                     guard token == generation else { return }
-                    let frameTime = ProcessInfo.processInfo.systemUptime
                     do {
                         try await recognize(image: snapshot.image, target: snapshot.window, solve: false)
-                        if let current = board, (confidence ?? 0) >= 0.80 {
-                            if stable == current {
-                                capturedAt = firstSeen
+                        if let current = board, seen?.board != current { seen = (current, frameTime) }
+                        if let current = board, let geometry, (confidence ?? 0) >= 0.80 {
+                            // Identical letters are also read while the board is still
+                            // animating in; the glyphs must also stay in place.
+                            if let previous = lastFrame, previous.board == current,
+                               try BoardAppearance.matches(previous.image, snapshot.image, geometry: geometry) {
+                                capturedAt = seen?.at ?? frameTime
                                 watching = false
                                 status = "Board confirmed. Finding words…"
                                 try await findWords(current)
-                                try await executePlay()
-                                return
+                                do {
+                                    try await executePlay()
+                                    return
+                                } catch is BoardChanged {
+                                    // Still settling after Start: read it again instead of disarming.
+                                    busy = true; watching = true
+                                    status = "The board changed before swiping. Reading it again…"
+                                }
+                                lastFrame = nil
+                            } else {
+                                lastFrame = (current, snapshot.image)
+                                status = "Board read. Confirming letters in a second frame…"
                             }
-                            stable = current
-                            firstSeen = frameTime
-                            status = "Board read. Confirming letters in a second frame…"
                         } else {
-                            stable = nil
+                            lastFrame = nil
                             lastProblem = board == nil
                                 ? "Some letters could not be read."
                                 : "Lowest tile confidence is \(Int((confidence ?? 0) * 100))%; automatic input requires 80%."
@@ -292,7 +283,7 @@ final class AppModel: ObservableObject {
                         // Only detection failures are transient. Never hide an input,
                         // permission, dictionary or stale-target failure in a retry loop.
                         guard case .detection = error else { throw error }
-                        stable = nil
+                        lastFrame = nil
                         lastProblem = error.localizedDescription
                         status = "Waiting for a live board: \(lastProblem)"
                     }
@@ -321,21 +312,31 @@ final class AppModel: ObservableObject {
     private func executePlay() async throws {
         let operation = generation
         busy = true
-        defer { if generation == operation { busy = false } }
+        defer {
+            if generation == operation { busy = false; activeWord = nil }
+        }
         guard let image, let geometry, let target, board != nil else { throw WordHuntError.automation("Capture a live board first. Imported screenshots cannot send mouse input.") }
         let edited = try Board(text: boardText, size: size)
         guard edited == board else { throw WordHuntError.automation("Letters changed. Choose Solve edits before playing.") }
         refreshPermissions()
         guard accessibility else { throw WordHuntError.automation("Accessibility permission is required to swipe.") }
+        // Clicking the phone's Start button can land just before the board is
+        // confirmed, and any physical pointer event during swiping stops input.
+        // The round budget keeps running while waiting for the hand to leave.
+        if !PointerActivity.isIdle(for: 0.3) {
+            status = "Board ready. Take your hand off the mouse to start swiping."
+            repeat {
+                try await Task.sleep(nanoseconds: 50_000_000)
+            } while !PointerActivity.isIdle(for: 0.3)
+                && ProcessInfo.processInfo.systemUptime - capturedAt < timeLimit - 1.8
+        }
         status = "Checking that the live board still matches this capture…"
         try MirroringCapture.activate(target)
         try await Task.sleep(nanoseconds: 200_000_000)
         let fresh = try await MirroringCapture.capture(target)
         try Task.checkCancellation()
         guard fresh.window.frame == target.frame,
-              try BoardAppearance.matches(image, fresh.image, geometry: geometry) else {
-            throw WordHuntError.automation("The board or window changed after capture. Capture and solve again before swiping.")
-        }
+              try BoardAppearance.matches(image, fresh.image, geometry: geometry) else { throw BoardChanged() }
         let elapsed = ProcessInfo.processInfo.systemUptime - capturedAt
         let remaining = timeLimit - elapsed - 0.8
         guard remaining > 1 else { throw WordHuntError.automation("This capture is too old for the selected round budget. Capture the current board again.") }
@@ -350,11 +351,16 @@ final class AppModel: ObservableObject {
         let token = generation
         do {
             let count = try await Task.detached(priority: .userInitiated) {
-                try executor.run(plans: schedule, window: target, timing: timing, timeLimit: remaining) { count, word in
+                try executor.run(plans: schedule, window: target, timing: timing, timeLimit: remaining, willSwipe: { word in
                     Task { @MainActor [weak self] in
-                        guard let self, self.generation == token else { return }
-                        self.attempted = count
+                        guard let self, self.generation == token, self.running else { return }
+                        self.activeWord = word
                         self.selectedWord = word
+                    }
+                }) { count, _ in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.generation == token, self.running else { return }
+                        self.attempted = count
                     }
                 }
             }.value
@@ -375,13 +381,14 @@ final class AppModel: ObservableObject {
         job?.cancel()
         executor?.cancel()
         job = nil; executor = nil
-        busy = false; running = false; watching = false; calibrating = false
+        busy = false; running = false; watching = false
+        activeWord = nil
         status = "Stopped. No automatic play is armed."
     }
 
     func sizeChanged() {
         stop()
-        geometry = nil; words = []; board = nil; calibration = nil
+        geometry = nil; words = []; board = nil
         if let image { startRecognition(image: image, target: target) }
     }
 
@@ -394,4 +401,9 @@ final class AppModel: ObservableObject {
             try encoder.encode(words).write(to: url)
         } catch { issue = error.localizedDescription }
     }
+}
+
+/// The live board or window no longer matches the capture being played.
+private struct BoardChanged: LocalizedError {
+    var errorDescription: String? { "The board or window changed after capture. Capture and solve again before swiping." }
 }

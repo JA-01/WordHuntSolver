@@ -2224,6 +2224,9 @@
     },
     "GamePigeon-Tutorial.png": {
       "source": "Same local capture session; cropped tutorial modal, not a playable board"
+    },
+    "GamePigeon-Tutorial-Unhighlighted.png": {
+      "source": "Derived from GamePigeon-Tutorial.png: example-path tiles and line repainted as plain tiles; not a playable board"
     }
   }
 }

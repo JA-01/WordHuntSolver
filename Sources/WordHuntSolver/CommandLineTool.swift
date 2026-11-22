@@ -32,7 +32,7 @@ enum CommandLineTool {
                 let bounds = try parseBounds(value("--bounds", in: arguments))
                 let detection = try BoardDetector().detect(image: image, size: size, bounds: bounds)
                 guard let board = detection.board else {
-                    throw WordHuntError.detection("Unreadable board: \(detection.cells.map(\.text).joined(separator: " ")). Use the app to correct letters or calibrate --bounds x,y,width,height.")
+                    throw WordHuntError.detection("Unreadable board: \(detection.cells.map(\.text).joined(separator: " ")). Correct letters in the app, or provide --bounds x,y,width,height.")
                 }
                 emit(board: board, solver: try dictionary(arguments), arguments: arguments, geometry: detection.geometry, confidence: detection.cells.map(\.confidence).min())
             case "sample", "--sample":
@@ -116,7 +116,7 @@ enum CommandLineTool {
         print("PASS: \(solver.wordCount) dictionary words; \(solutions.count) unique legal solutions.")
         print("PASS: Retina-scale gesture planning; \(schedule.count) scheduled words within 70 seconds.")
         print("PASS: native local mouse handlers accepted \(practice.view.accepted.count) words for \(practice.view.score) points; duplicate rejected.")
-        print("PASS: workbench correction, invalid-board rejection, and active-calibration safety.")
+        print("PASS: workbench correction, invalid-board rejection, and screenshot input safety.")
         print("LIMIT: local NSEvent replay is not system CGEvent injection or an iPhone test.")
         print("Permissions: Screen Recording=\(AutomationPermissions.screenRecordingGranted), Accessibility=\(AutomationPermissions.accessibilityGranted)")
     }
@@ -191,15 +191,13 @@ enum CommandLineTool {
     private static func checkWorkbenchState(expected: Board, words: [FoundWord]) throws {
         let model = AppModel()
         model.loadSample()
-        // A late calibration callback must not replace an in-flight capture job.
-        model.calibrate(CGRect(x: 0, y: 0, width: 1, height: 1))
         let timeout = Date().addingTimeInterval(45)
         while model.busy && Date() < timeout {
             RunLoop.current.run(until: Date().addingTimeInterval(0.02))
         }
         guard model.issue == nil, model.words == words,
               try Board(text: model.boardText, size: 4) == expected else {
-            throw WordHuntError.detection(model.issue ?? "Workbench recognition or calibration guard failed.")
+            throw WordHuntError.detection(model.issue ?? "Workbench recognition failed.")
         }
         let original = model.boardText
         model.boardText = "?"

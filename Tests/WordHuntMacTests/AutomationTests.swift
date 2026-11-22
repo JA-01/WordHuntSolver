@@ -96,7 +96,7 @@ struct AutomationTests {
                                       frame: CGRect(x: 0, y: 0, width: 400, height: 500))
             do {
                 _ = try executor.run(plans: [], window: window, timing: SwipeTiming(),
-                                     timeLimit: 1, progress: { _, _ in })
+                                     timeLimit: 1, willSwipe: { _ in }, progress: { _, _ in })
                 return nil
             } catch {
                 return error.localizedDescription

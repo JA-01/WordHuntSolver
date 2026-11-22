@@ -107,6 +107,22 @@ internal struct SwipeInputState {
     }
 }
 
+/// Physical pointer activity outside an executor run. Any pointer event during
+/// swiping is a takeover, so automatic play first waits for the hand to leave
+/// the mouse, for example after clicking the game's Start button.
+public enum PointerActivity {
+    static let events: [CGEventType] = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+                                        .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+                                        .otherMouseDown, .otherMouseUp, .scrollWheel]
+
+    /// No button is held and no hardware pointer event arrived for `seconds`.
+    public static func isIdle(for seconds: Double) -> Bool {
+        let buttons: [CGMouseButton] = [.left, .right, .center]
+        guard !buttons.contains(where: { CGEventSource.buttonState(.combinedSessionState, button: $0) }) else { return false }
+        return events.allSatisfy { CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: $0) >= seconds }
+    }
+}
+
 private final class SwipeInputMonitor {
     let eventTag: Int64
     private var state: SwipeInputState
@@ -118,9 +134,7 @@ private final class SwipeInputMonitor {
         let tag = Int64.random(in: 1...Int64.max)
         eventTag = tag
         state = SwipeInputState(eventTag: tag)
-        let types: [CGEventType] = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
-                                    .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
-                                    .otherMouseDown, .otherMouseUp, .scrollWheel, .keyDown]
+        let types = PointerActivity.events + [.keyDown]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
                                          options: .listenOnly, eventsOfInterest: mask, callback: { _, type, event, context in
@@ -216,8 +230,10 @@ public final class SwipeExecutor {
 
     private enum Stop: Error { case deadline }
 
+    /// Announces each word before input begins; progress counts only completed gestures.
     public func run(plans: [SwipePlan], window: MirrorWindow, timing: SwipeTiming,
-                    timeLimit: Double, progress: @escaping (Int, String) -> Void) throws -> Int {
+                    timeLimit: Double, willSwipe: @escaping (String) -> Void,
+                    progress: @escaping (Int, String) -> Void) throws -> Int {
         guard !Thread.isMainThread else { throw WordHuntError.automation("Run swipes on a background thread, never the main thread.") }
         try timing.validate()
         guard timeLimit.isFinite, timeLimit > 0, SwipePlanner.valid(window.frame) else {
@@ -353,6 +369,7 @@ public final class SwipeExecutor {
                 // Reserve the entire word including pause; never deliberately start a
                 // partial word at the deadline. Unexpected scheduling delays still release.
                 guard ProcessInfo.processInfo.systemUptime + plan.estimatedDuration < deadline else { break }
+                willSwipe(plan.word.word)
                 gesture += 1
                 let first = plan.points[0]
                 try post(.mouseMoved, at: first)

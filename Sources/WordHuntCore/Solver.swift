@@ -100,7 +100,8 @@ public final class WordSolver {
     }
 
     public static func bundled() throws -> WordSolver {
-        guard let url = Bundle.module.url(forResource: "enable1", withExtension: "txt") else {
+        guard let url = ResourceBundle.packaged("WordHuntSolver_WordHuntCore", fallback: { .module })
+            .url(forResource: "enable1", withExtension: "txt") else {
             throw WordHuntError.dictionary("The bundled ENABLE dictionary is missing. Reinstall the complete application bundle.")
         }
         do {

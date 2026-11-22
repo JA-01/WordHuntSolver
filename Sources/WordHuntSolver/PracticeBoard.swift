@@ -16,7 +16,7 @@ enum BoardArtwork {
         NSColor(calibratedRed: 0.10, green: 0.28, blue: 0.21, alpha: 1).setFill()
         rect.fill()
         let title: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 27, weight: .bold), .foregroundColor: NSColor.white]
-        ("Word Hunt Practice" as NSString).draw(at: CGPoint(x: 32, y: 25), withAttributes: title)
+        ("Word Hunt" as NSString).draw(at: CGPoint(x: 32, y: 25), withAttributes: title)
         ("\(score.formatted()) points" as NSString).draw(at: CGPoint(x: 32, y: 70), withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 23, weight: .medium), .foregroundColor: NSColor.white])
         let grid = geometry(size: board.size, canvas: rect.size)
         let cell = grid.width / Double(board.size)

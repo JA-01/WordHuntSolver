@@ -106,9 +106,10 @@ public final class BoardDetector {
             tiles.append(Tile(rect: CGRect(x: minX, y: minY, width: w, height: h)))
         }
         guard tiles.count >= size * size else {
-            throw WordHuntError.detection("No regular tan-tile board found. Capture the green game board or calibrate its bounds.")
+            throw WordHuntError.detection("No regular tan-tile board found. Show the entire game board and check the selected grid size.")
         }
         var candidates: [CGRect] = []
+        var sawInstructions = false
         for first in tiles {
             for next in tiles {
                 let pitchX = next.center.x - first.center.x
@@ -138,6 +139,7 @@ public final class BoardDetector {
                                       width: CGFloat(size) * pitchX, height: CGFloat(size) * pitchY)
                     guard rect.minX >= 0, rect.minY >= 0, rect.maxX <= CGFloat(width), rect.maxY <= CGFloat(height),
                           greenGutters(rect: rect, size: size, raster: raster) else { continue }
+                    if onInstructionCard(rect: rect, raster: raster) { sawInstructions = true; continue }
                     if !candidates.contains(where: { abs($0.midX - rect.midX) < pitchX * 0.2 && abs($0.midY - rect.midY) < pitchY * 0.2 }) {
                         candidates.append(rect)
                     }
@@ -145,9 +147,12 @@ public final class BoardDetector {
             }
         }
         guard candidates.count == 1, let candidate = candidates.first else {
+            if candidates.isEmpty && sawInstructions {
+                throw WordHuntError.detection("The How to play screen is showing, not a round. Press Start on the phone.")
+            }
             throw WordHuntError.detection(candidates.isEmpty
-                ? "No regular board with green gutters found. Use calibrated bounds if needed."
-                : "Multiple boards found. Calibrate bounds to select the intended board.")
+                ? "No regular board with green gutters found. Show the entire game board without overlays."
+                : "Multiple boards found. Capture an image containing only the intended board.")
         }
         return CGRect(x: candidate.minX * raster.scaleX, y: candidate.minY * raster.scaleY,
                       width: candidate.width * raster.scaleX, height: candidate.height * raster.scaleY)
@@ -172,6 +177,26 @@ public final class BoardDetector {
             }
         }
         return green * 100 >= count * 65
+    }
+
+    /// GamePigeon's "How to play" modal shows an illustrative board on a white
+    /// panel. Its tile colors reject it only while the tutorial path is
+    /// highlighted. A live round's board sits on the green game background.
+    private func onInstructionCard(rect: CGRect, raster: PixelRaster) -> Bool {
+        var white = 0, count = 0
+        for x in [rect.minX - rect.width * 0.18, rect.maxX + rect.width * 0.18] {
+            let column = Int(x)
+            guard column >= 0, column < raster.width else { continue }
+            for step in 0..<9 {
+                let row = Int(rect.minY + rect.height * (CGFloat(step) + 0.5) / 9)
+                guard row >= 0, row < raster.height else { continue }
+                let p = (row * raster.width + column) * 4
+                let r = Int(raster.bytes[p]), g = Int(raster.bytes[p + 1]), b = Int(raster.bytes[p + 2])
+                if min(r, g, b) > 215 && max(r, g, b) - min(r, g, b) < 30 { white += 1 }
+                count += 1
+            }
+        }
+        return count >= 9 && white * 100 >= count * 70
     }
 
     private func recognize(_ image: CGImage) throws -> CellReading {

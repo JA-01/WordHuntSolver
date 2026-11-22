@@ -55,6 +55,19 @@ struct GamePigeonRecognitionTests {
         #expect(throws: WordHuntError.self) { try BoardDetector().detect(image: image) }
     }
 
+    @Test func tutorialIllustrationWithoutPathHighlightIsNotAPlayableBoard() throws {
+        // Plain tan tiles pass every grid check; only the white modal identifies it.
+        let image = try fixtureImage("GamePigeon-Tutorial-Unhighlighted.png")
+        do {
+            _ = try BoardDetector().detect(image: image)
+            Issue.record("The tutorial illustration was accepted as a playable board.")
+        } catch WordHuntError.detection {
+            // Transient: an armed run keeps waiting for the round to start.
+        } catch {
+            Issue.record("Expected a detection error, got \(error)")
+        }
+    }
+
     @Test func heldOutRealReferenceGlyphsIncludeEveryLetterAndRejectConfusions() throws {
         let manifest = try fixtureURL("ReferenceGlyphs.json")
         let examples = try JSONDecoder().decode([ReferenceGlyph].self, from: Data(contentsOf: manifest))
