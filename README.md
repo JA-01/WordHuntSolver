@@ -2,7 +2,7 @@
 
 Word Hunt Solver reads the GamePigeon board in iPhone Mirroring and swipes the words it finds. You can also solve a screenshot if you just want to see what you missed. The dictionary and letter recognition run on your Mac.
 
-The easiest way to run this application is to [download it from the releases tab](https://github.com/JA-01/WordHuntSolver/releases/tag/v1.0.0). All of the instructions below are for building and running it locally. 
+The easiest way to run this application is to [download the latest release](https://github.com/JA-01/WordHuntSolver/releases/latest) for Apple silicon Macs. To build from source, see [Build and run](#build-and-run).
 
 ![Word Hunt Solver and iPhone Mirroring showing the path for TREEING during a round](docs/images/live-round.png)
 
