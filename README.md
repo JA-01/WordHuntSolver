@@ -4,7 +4,9 @@ Word Hunt Solver reads the GamePigeon board in iPhone Mirroring and swipes the w
 
 ![Word Hunt Solver and iPhone Mirroring showing the path for TREEING during a round](docs/images/live-round.png)
 
-[Download the demo (MP4, 45 seconds)](docs/videos/word-hunt-demo.mp4?raw=true) to see the round go from the tutorial screen to 86,700 points.
+The demo shows the round from the tutorial screen to 86,700 points (45 seconds).
+
+https://github.com/user-attachments/assets/04c81a9f-79c0-4134-b7a1-c566b1b1e30f
 
 ## Build and run
 
