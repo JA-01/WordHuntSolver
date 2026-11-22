@@ -2,6 +2,8 @@
 
 Word Hunt Solver reads the GamePigeon board in iPhone Mirroring and swipes the words it finds. You can also solve a screenshot if you just want to see what you missed. The dictionary and letter recognition run on your Mac.
 
+Download [Word Hunt Solver v1.0.0](https://github.com/JA-01/WordHuntSolver/releases/tag/v1.0.0) for Apple silicon Macs.
+
 ![Word Hunt Solver and iPhone Mirroring showing the path for TREEING during a round](docs/images/live-round.png)
 
 The demo shows the round from the tutorial screen to 86,700 points (45 seconds).
