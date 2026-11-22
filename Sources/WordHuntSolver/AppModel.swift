@@ -23,6 +23,11 @@ final class AppModel: ObservableObject {
     @Published var stepDuration = 0.035
     @Published var wordPause = 0.065
     @Published var timeLimit = 70.0
+    @Published var humanMode = false
+    @Published var humanMaxWords = 20
+    @Published var humanMaxWordLength = 6
+    @Published var humanMaxScore: Double = 10_000
+    @Published var humanThinkingPause = 2.0
     @Published var attempted = 0
     @Published var planned = 0
     @Published var accessibility = AutomationPermissions.accessibilityGranted
@@ -330,12 +335,26 @@ final class AppModel: ObservableObject {
         let elapsed = ProcessInfo.processInfo.systemUptime - capturedAt
         let remaining = timeLimit - elapsed - 0.8
         guard remaining > 1 else { throw WordHuntError.automation("This capture is too old for the selected round budget. Capture the current board again.") }
-        let timing = SwipeTiming(stepDuration: stepDuration, wordPause: wordPause)
-        let allPlans = try SwipePlanner.plan(words: words, geometry: geometry, imageSize: CGSize(width: image.width, height: image.height), windowFrame: target.frame, timing: timing)
-        let schedule = WordSchedule.select(allPlans, seconds: remaining)
-        guard !schedule.isEmpty else { throw WordHuntError.automation("No complete word fits the remaining gesture budget.") }
+        let timing = SwipeTiming(stepDuration: stepDuration, wordPause: wordPause,
+                                 thinkingPause: humanMode ? humanThinkingPause : 0)
+        let playWords = humanMode
+            ? WordSchedule.selectHuman(words, seconds: remaining, timing: timing,
+                                       maxWords: humanMaxWords, maxScore: Int(humanMaxScore),
+                                       maxWordLength: humanMaxWordLength)
+            : words
+        let plans = try SwipePlanner.plan(words: playWords, geometry: geometry,
+                                         imageSize: CGSize(width: image.width, height: image.height),
+                                         windowFrame: target.frame, timing: timing)
+        let schedule = humanMode ? plans : WordSchedule.select(plans, seconds: remaining)
+        guard !schedule.isEmpty else {
+            throw WordHuntError.automation(humanMode
+                ? "No word fits the Human mode settings and remaining time."
+                : "No complete word fits the remaining gesture budget.")
+        }
         running = true; watching = false; busy = false; attempted = 0; planned = schedule.count
-        status = "Swiping \(schedule.count) words. Escape or moving the mouse stops input."
+        status = humanMode
+            ? "Human mode: \(schedule.count) words planned. Escape or moving the mouse stops input."
+            : "Swiping \(schedule.count) words. Escape or moving the mouse stops input."
         let executor = SwipeExecutor()
         self.executor = executor
         let token = generation

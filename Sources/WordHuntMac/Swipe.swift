@@ -4,10 +4,12 @@ import WordHuntCore
 public struct SwipeTiming {
     public var stepDuration: Double
     public var wordPause: Double
+    public var thinkingPause: Double
 
-    public init(stepDuration: Double = 0.035, wordPause: Double = 0.045) {
+    public init(stepDuration: Double = 0.035, wordPause: Double = 0.045, thinkingPause: Double = 0) {
         self.stepDuration = stepDuration
         self.wordPause = wordPause
+        self.thinkingPause = thinkingPause
     }
 
     internal func validate() throws {
@@ -15,6 +17,19 @@ public struct SwipeTiming {
               wordPause.isFinite, wordPause >= 0, wordPause <= 10 else {
             throw WordHuntError.automation("Use a step duration from 0.005 to 2 seconds and a word pause from 0 to 10 seconds.")
         }
+        guard thinkingPause.isFinite, (0...4).contains(thinkingPause) else {
+            throw WordHuntError.automation("Use a thinking pause from 0 to 4 seconds.")
+        }
+    }
+
+    internal func thinkingDelay(for word: FoundWord) -> Double {
+        guard thinkingPause > 0 else { return 0 }
+        // Four-letter words use the configured pause; longer finds take more time.
+        return thinkingPause * Double(min(word.word.utf8.count, 8) + 4) / 8
+    }
+
+    internal func duration(for word: FoundWord) -> Double {
+        Double(word.path.count) * stepDuration + wordPause + 0.004 + thinkingDelay(for: word)
     }
 }
 
@@ -47,8 +62,7 @@ public enum SwipePlanner {
                 return CGPoint(x: windowFrame.minX + pixel.x * windowFrame.width / imageSize.width,
                                y: windowFrame.minY + pixel.y * windowFrame.height / imageSize.height)
             }
-            return SwipePlan(word: word, points: points,
-                             estimatedDuration: Double(points.count) * timing.stepDuration + timing.wordPause + 0.004)
+            return SwipePlan(word: word, points: points, estimatedDuration: timing.duration(for: word))
         }
     }
 
@@ -241,7 +255,7 @@ public final class SwipeExecutor {
         }
         // Validate all plans before acquiring permission or emitting even a mouse move.
         for plan in plans {
-            let duration = Double(plan.points.count) * timing.stepDuration + timing.wordPause + 0.004
+            let duration = timing.duration(for: plan.word)
             guard plan.points.count == plan.word.path.count, plan.points.count >= 2,
                   plan.estimatedDuration.isFinite, abs(plan.estimatedDuration - duration) < 0.000_001,
                   plan.points.allSatisfy({ $0.x.isFinite && $0.y.isFinite && window.frame.contains($0) }) else {
@@ -369,6 +383,11 @@ public final class SwipeExecutor {
                 // Reserve the entire word including pause; never deliberately start a
                 // partial word at the deadline. Unexpected scheduling delays still release.
                 guard ProcessInfo.processInfo.systemUptime + plan.estimatedDuration < deadline else { break }
+                let thinkingDelay = timing.thinkingDelay(for: plan.word)
+                if thinkingDelay > 0 {
+                    try waitUntil(ProcessInfo.processInfo.systemUptime + thinkingDelay)
+                    guard ProcessInfo.processInfo.systemUptime + (plan.estimatedDuration - thinkingDelay) < deadline else { break }
+                }
                 willSwipe(plan.word.word)
                 gesture += 1
                 let first = plan.points[0]

@@ -46,6 +46,7 @@ private struct SolverWorkbench: View {
                     ScrollViewReader { inspector in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 14) {
+                                humanModeControls
                                 boardEditor
                                 results.id("word-results")
                                 timing
@@ -252,6 +253,47 @@ private struct SolverWorkbench: View {
             }
             .padding(8)
         }
+    }
+
+    private var humanModeControls: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Human mode", isOn: $model.humanMode)
+                    .toggleStyle(.switch)
+                    .help("Play fewer words and pause to think between swipes.")
+                DisclosureGroup("Human mode settings") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Stepper(value: $model.humanMaxWords, in: 1...100) {
+                            Text("Max words: \(model.humanMaxWords)")
+                        }
+                        Stepper(value: $model.humanMaxWordLength, in: 3...12) {
+                            Text("Max word length: \(model.humanMaxWordLength) letters")
+                        }
+                        HStack {
+                            Text("Max score").frame(width: 100, alignment: .leading)
+                            Slider(value: $model.humanMaxScore, in: 100...50_000, step: 100)
+                                .accessibilityLabel("Maximum estimated score")
+                            Text(Int(model.humanMaxScore).formatted()).monospacedDigit()
+                                .frame(width: 55, alignment: .trailing)
+                        }
+                        HStack {
+                            Text("Thinking pause").frame(width: 100, alignment: .leading)
+                            Slider(value: $model.humanThinkingPause, in: 0.5...4, step: 0.1)
+                                .accessibilityLabel("Thinking pause")
+                            Text("\(model.humanThinkingPause, format: .number.precision(.fractionLength(1))) s")
+                                .monospacedDigit()
+                                .frame(width: 55, alignment: .trailing)
+                        }
+                        Text("Longer words get a longer pause. The score limit uses estimated points, not the game's live score.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 10)
+                }
+            }
+            .padding(8)
+        }
+        .disabled(isWorking)
     }
 
     private var timing: some View {

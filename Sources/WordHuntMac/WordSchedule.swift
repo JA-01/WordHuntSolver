@@ -1,8 +1,9 @@
 import Foundation
+import WordHuntCore
 
-/// Exact 0/1 knapsack over conservatively rounded 10 ms gesture costs.
-/// Optimizes estimated dictionary points, not confirmed GamePigeon acceptance.
+/// Schedules live swipes against estimated dictionary points and the round clock.
 public enum WordSchedule {
+    /// Exact 0/1 knapsack over conservatively rounded 10 ms gesture costs.
     public static func select(_ plans: [SwipePlan], seconds: Double) -> [SwipePlan] {
         guard seconds.isFinite, seconds > 0, !plans.isEmpty else { return [] }
         let quantum = 0.01
@@ -33,6 +34,28 @@ public enum WordSchedule {
             }
         }
         return order(selected)
+    }
+
+    public static func selectHuman(_ words: [FoundWord], seconds: Double, timing: SwipeTiming,
+                                   maxWords: Int, maxScore: Int, maxWordLength: Int) -> [FoundWord] {
+        guard seconds.isFinite, seconds > 0, maxWords > 0, maxScore > 0 else { return [] }
+        var candidates = words.indices.filter { words[$0].word.utf8.count <= maxWordLength }
+        var selected: [FoundWord] = []
+        selected.reserveCapacity(min(maxWords, candidates.count))
+        var timeLeft = seconds
+        var pointsLeft = maxScore
+        // Draw without replacement. Keep searching if a word doesn't fit the remaining budget.
+        while !candidates.isEmpty, selected.count < maxWords, pointsLeft > 0 {
+            candidates.swapAt(Int.random(in: candidates.indices), candidates.count - 1)
+            let word = words[candidates.removeLast()]
+            guard word.score <= pointsLeft else { continue }
+            let duration = timing.duration(for: word)
+            guard duration <= timeLeft else { continue }
+            selected.append(word)
+            timeLeft -= duration
+            pointsLeft -= word.score
+        }
+        return selected
     }
 
     private static func order(_ plans: [SwipePlan]) -> [SwipePlan] {
