@@ -63,16 +63,6 @@ final class AppModel: ObservableObject {
         } catch { windowChoices = [] }
     }
 
-    func requestPermissions() {
-        AutomationPermissions.requestAccessibility()
-        AutomationPermissions.requestScreenRecording()
-        refreshPermissions()
-    }
-
-    func openPrivacy() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-    }
-
     func importImage() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic]
@@ -210,7 +200,7 @@ final class AppModel: ObservableObject {
         guard !busy && !running else { return }
         refreshWindows()
         guard accessibility, screenRecording else {
-            issue = "Enable Screen Recording and Accessibility with Grant permissions, then click Solve & Auto Swipe again."
+            issue = "Live play requires Screen Recording and Accessibility. Use the settings buttons below to enable the missing permissions, then try again."
             return
         }
         generation += 1

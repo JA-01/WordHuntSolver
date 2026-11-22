@@ -20,7 +20,9 @@ You'll need macOS 14 or later and Swift 6 (Xcode or the Command Line Tools). For
 
 `make run` builds, signs, and opens `dist/Word Hunt Solver.app`. Use `make app` to build without opening it. The app is signed locally, not notarized. If you want to move it to `/Applications`, do that before granting permissions.
 
-For live play, click **Grant permissions** and enable **Screen Recording** (listed as **Screen & System Audio Recording** on newer macOS versions) and **Accessibility**. Enable **Input Monitoring** only if the app asks for it. If permissions stop working after a rebuild, quit the app, remove its old entry in **System Settings → Privacy & Security**, then add the rebuilt app.
+Live play won't work until you grant both **Screen Recording** and **Accessibility**. Use **Open Screen Recording Settings** and **Open Accessibility Settings** at the bottom of the app, then turn on Word Hunt Solver in each pane. macOS may call the first pane **Screen & System Audio Recording**. If the app isn't listed, click **+** and add it. Enable **Input Monitoring** only if the app asks for it.
+
+If permissions stop working after a rebuild, quit the app, remove its old entries in **System Settings → Privacy & Security**, then add the rebuilt app.
 
 ## Play a round
 

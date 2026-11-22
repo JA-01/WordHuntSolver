@@ -322,19 +322,48 @@ private struct SolverWorkbench: View {
                     .help("Stop recognition or swiping. Escape also stops automation.")
             }
             if !model.screenRecording || !model.accessibility {
-                HStack(spacing: 16) {
-                    Label("Screen Recording", systemImage: model.screenRecording ? "checkmark.circle.fill" : "lock")
-                        .foregroundStyle(model.screenRecording ? .green : .secondary)
-                    Label("Accessibility", systemImage: model.accessibility ? "checkmark.circle.fill" : "lock")
-                        .foregroundStyle(model.accessibility ? .green : .secondary)
-                    Spacer()
-                    Button("Grant permissions") { model.requestPermissions() }
-                    Button("Privacy settings") { model.openPrivacy() }
-                }
-                .font(.caption)
+                permissionWarning
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+    }
+
+    private var permissionWarning: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text("Live play won't work until you grant both permissions.")
+                        .font(.callout.weight(.semibold))
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                Text("Turn on Word Hunt Solver in both settings panes. If it isn't listed, click + and add the app. Quit and reopen it if macOS asks. You can still solve imported screenshots without these permissions.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                permissionRow("Screen Recording", purpose: "Reads the board in iPhone Mirroring.",
+                              granted: model.screenRecording, pane: "Privacy_ScreenCapture")
+                permissionRow("Accessibility", purpose: "Lets the app swipe words.",
+                              granted: model.accessibility, pane: "Privacy_Accessibility")
+            }
+            .font(.caption)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func permissionRow(_ name: String, purpose: String, granted: Bool, pane: String) -> some View {
+        HStack(spacing: 12) {
+            Label("\(name) \(granted ? "granted" : "required")",
+                  systemImage: granted ? "checkmark.circle.fill" : "lock")
+            Text(purpose)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if !granted {
+                Button("Open \(name) Settings") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
+                }
+            }
+        }
     }
 }

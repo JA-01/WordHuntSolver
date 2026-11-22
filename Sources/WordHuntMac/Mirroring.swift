@@ -30,15 +30,6 @@ public struct WindowSnapshot {
 public enum AutomationPermissions {
     public static var accessibilityGranted: Bool { AXIsProcessTrusted() }
     public static var screenRecordingGranted: Bool { CGPreflightScreenCaptureAccess() }
-
-    public static func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
-    }
-
-    public static func requestScreenRecording() {
-        _ = CGRequestScreenCaptureAccess()
-    }
 }
 
 public enum MirroringCapture {
